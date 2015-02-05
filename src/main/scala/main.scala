@@ -11,7 +11,7 @@ object Wp2Prismic {
 
   // WORDPRESS
 
-  case class WPost(id: String, title: String, description: String, content: String, categories: List[String], tags: List[String], author: String, at: Date, comment: Boolean, image: Option[String])
+  case class WPost(id: String, title: String, description: String, content: String, categories: List[String], tags: List[String], author: String, at: Date, comment: Boolean, image: Option[WPImage])
 
   type WParagraph = String
 
@@ -30,8 +30,25 @@ object Wp2Prismic {
       }
       val credit = meta.flatMap(m => m.get("credit").map(_.asInstanceOf[String])).filter(_ != "")
       val copyright = meta.flatMap(m => m.get("copyright").map(_.asInstanceOf[String])).filter(_ != "")
-      println(width, height, credit, copyright, alt)
-      WPImage(id, url, width, height, credit, copyright, alt, Seq.empty)
+      val sizes = attributes.get("sizes").map { m =>
+        val x: MMap[String, Any] = m.asInstanceOf[java.util.LinkedHashMap[String, Any]]
+        x
+      } getOrElse MMap.empty
+
+      val thumbnails = Seq("thumbnail", "medium", "post-thumbnail").flatMap { size =>
+        sizes.get(size).flatMap { t =>
+          val x: MMap[String, Any] = t.asInstanceOf[java.util.LinkedHashMap[String, Any]]
+          x.get("file").map(_.asInstanceOf[String]).map { file =>
+            val width = x.get("width").map(_.asInstanceOf[Int])
+            val height = x.get("height").map(_.asInstanceOf[Int])
+            val thumbnailUrl = {
+              url.split('/').init.mkString("/") + "/" + file
+            }
+            WPImage(id + "_" + file, thumbnailUrl, width, height, credit, copyright, alt, Seq.empty)
+          }
+        }
+      }
+      WPImage(id, url, width, height, credit, copyright, alt, thumbnails)
     }
   }
 
@@ -149,9 +166,10 @@ object Wp2Prismic {
           key == "_thumbnail_id"
         }.map(_ \ "meta_value").map(_.text)
         thumbnail.flatMap { id =>
-          images.find(_.id == id).map(_.url)
+          images.find(_.id == id)
         }
       }
+      println(image)
       val commentStatus = (p \\ "comment_status").text == "open"
       val description = (p \ "description").text
       val post = WPost(id, title, description, content, categories, tags, author, date, commentStatus, image)
