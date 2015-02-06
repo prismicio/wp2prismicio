@@ -16,7 +16,7 @@
 <!-- 7. WordPress will then import each of the posts, pages, comments, categories, etc. -->
 <!--    contained in this file into your site. -->
 
-<!-- generator="WordPress/4.1" created="2015-02-05 13:39" -->
+<!-- generator="WordPress/4.1" created="2015-02-06 09:49" -->
 <rss version="2.0"
 	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
 	xmlns:content="http://purl.org/rss/1.0/modules/content/"
@@ -29,7 +29,7 @@
 	<title>prismic.io</title>
 	<link>http://localhost:8888</link>
 	<description>AN ENTIRELY NEW WAY TO  BRING YOUR WEBSITE OR APP&#039;S CONTENT ALIVE</description>
-	<pubDate>Thu, 05 Feb 2015 13:39:49 +0000</pubDate>
+	<pubDate>Fri, 06 Feb 2015 09:49:49 +0000</pubDate>
 	<language>en-US</language>
 	<wp:wxr_version>1.2</wp:wxr_version>
 	<wp:base_site_url>http://localhost:8888</wp:base_site_url>
@@ -289,7 +289,7 @@ function() { console.log('here') };
 var a = 1;
 var b = 2;
 </code>]]></content:encoded>
-		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<excerpt:encoded><![CDATA[This is a summary!!!]]></excerpt:encoded>
 		<wp:post_id>15</wp:post_id>
 		<wp:post_date>2015-02-03 14:09:17</wp:post_date>
 		<wp:post_date_gmt>2015-02-03 14:09:17</wp:post_date_gmt>
@@ -635,8 +635,8 @@ prismic.io makes it easy to draft & publish content for your website or app and 
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/wp-content/uploads/2015/02/image61.png</guid>
 		<description></description>
-		<content:encoded><![CDATA[]]></content:encoded>
-		<excerpt:encoded><![CDATA[]]></excerpt:encoded>
+		<content:encoded><![CDATA[this is description]]></content:encoded>
+		<excerpt:encoded><![CDATA[This is a caption]]></excerpt:encoded>
 		<wp:post_id>39</wp:post_id>
 		<wp:post_date>2015-02-04 10:27:15</wp:post_date>
 		<wp:post_date_gmt>2015-02-04 10:27:15</wp:post_date_gmt>
@@ -657,6 +657,10 @@ prismic.io makes it easy to draft & publish content for your website or app and 
 		<wp:postmeta>
 			<wp:meta_key>_wp_attachment_metadata</wp:meta_key>
 			<wp:meta_value><![CDATA[a:5:{s:5:"width";i:700;s:6:"height";i:434;s:4:"file";s:19:"2015/02/image61.png";s:5:"sizes";a:2:{s:9:"thumbnail";a:4:{s:4:"file";s:19:"image61-150x150.png";s:5:"width";i:150;s:6:"height";i:150;s:9:"mime-type";s:9:"image/png";}s:6:"medium";a:4:{s:4:"file";s:19:"image61-300x186.png";s:5:"width";i:300;s:6:"height";i:186;s:9:"mime-type";s:9:"image/png";}}s:10:"image_meta";a:11:{s:8:"aperture";i:0;s:6:"credit";s:0:"";s:6:"camera";s:0:"";s:7:"caption";s:0:"";s:17:"created_timestamp";i:0;s:9:"copyright";s:0:"";s:12:"focal_length";i:0;s:3:"iso";i:0;s:13:"shutter_speed";i:0;s:5:"title";s:0:"";s:11:"orientation";i:0;}}]]></wp:meta_value>
+		</wp:postmeta>
+		<wp:postmeta>
+			<wp:meta_key>_wp_attachment_image_alt</wp:meta_key>
+			<wp:meta_value><![CDATA[This is alt]]></wp:meta_value>
 		</wp:postmeta>
 	</item>
 	<item>

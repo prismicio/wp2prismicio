@@ -1,17 +1,18 @@
 import scala.collection.JavaConversions._
 import scala.xml.XML
 import org.jsoup._
+import org.jsoup.nodes.Element
 import org.lorecraft.phparser.SerializedPhpParser
 import java.util.{ Date, TimeZone }
 import java.text.SimpleDateFormat
 import scala.collection.mutable.{ Map => MMap }
-import play.api.libs.json.{ JsValue, Json }
+import play.api.libs.json.{ JsValue, Json, JsArray }
 
 object Wp2Prismic {
 
   // WORDPRESS
 
-  case class WPost(id: String, title: String, description: String, content: String, categories: List[String], tags: List[String], author: String, at: Date, comment: Boolean, image: Option[WPImage])
+  case class WPost(id: String, slug: String, title: String, description: String, content: String, categories: List[String], tags: List[String], author: String, at: Date, comment: Boolean, image: Option[WPImage])
 
   type WParagraph = String
 
@@ -57,9 +58,16 @@ object Wp2Prismic {
   }
 
   // PRISMIC
-  case class StructuredText()
-
   object StructuredText {
+
+    def apply(text: String, spans: JsArray): JsValue =
+      Json.obj(
+        "type" -> "paragraph",
+        "content" -> Json.obj(
+          "text" -> text,
+          "spans" -> spans
+        )
+      )
 
     def strong(start: Int, end: Int) =
       Json.obj("start" -> start, "end" -> end, "type" -> "strong")
@@ -104,6 +112,25 @@ object Wp2Prismic {
             "url" -> url
           )
         )
+      )
+  }
+
+  object BlogPost {
+
+    def apply(slug: String, title: String, body: JsValue, shortlede: JsValue, image: JsValue, author: JsValue, date: JsValue, categories: Seq[JsValue], comment: Boolean): JsValue =
+      Json.obj(
+        "uid" -> slug,
+        "title" -> title,
+        "body" -> body,
+        "shortlede" -> shortlede,
+        "image" -> image,
+        "date" -> date,
+        "author" -> author,
+        "categories" -> categories.zipWithIndex.foldLeft(Json.obj()) {
+          case (acc, (category, index)) =>
+            acc ++ Json.obj(index.toString -> category)
+        },
+        "allow_comments" -> comment
       )
   }
 
@@ -169,10 +196,10 @@ object Wp2Prismic {
           images.find(_.id == id)
         }
       }
-      println(image)
       val commentStatus = (p \\ "comment_status").text == "open"
-      val description = (p \ "description").text
-      val post = WPost(id, title, description, content, categories, tags, author, date, commentStatus, image)
+      val slug = (p \ "post_name").text
+      val desc = (p \ "encoded").filter(_.prefix == "excerpt").text
+      val post = WPost(id, slug, title, desc, content, categories, tags, author, date, commentStatus, image)
       wp2prismic(post)
     }
   }
@@ -183,14 +210,15 @@ object Wp2Prismic {
     }
 
     val root = Jsoup.parse(content).body
-    //println(root.childNodes)
-    //println(root.children.head)
-    //println("---------->")
-    //println(root.children.head.childNodes)
-    // root.children.listIterator.foldLeft(Json.obj()) { (acc, el) =>
-    //   println("------------>")
-    //   println(el)
-    //   acc
-    // }
+
+    def step(el: Element, cursor: Int, level: Int): JsValue = {
+      root.childNodes.foldLeft(Json.obj()) { (acc, el) => //PARAGRAPH LEVEL
+        //println("------------>")
+        //println(el.acc)
+        acc
+      }
+    }
+
+    step(root, 0, 0)
   }
 }
