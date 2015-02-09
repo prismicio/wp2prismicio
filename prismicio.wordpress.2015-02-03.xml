@@ -237,7 +237,7 @@ Pour supprimer un commentaire, connectez-vous et affichez les commentaires de ce
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?p=15</guid>
 		<description></description>
-		<content:encoded><![CDATA[Today, I am glad to ship a new prismic.io feature: <strong><em>prismic Preview Bar</em></strong>. It allows you to preview your Writing Room changes and it integrates seemlessly into your website in any technology or design. You can preview planned releases, saved or unsaved drafts without publishing them.
+		<content:encoded><![CDATA[Today, I am glad to ship a new prismic.io feature: <strong><em>prismic Preview Bar</em></strong>. It allows you to <strong>preview</strong> your Writing Room changes and it integrates seemlessly into your website in any technology or design. You can preview planned releases, saved or unsaved drafts without publishing them.
 
 <!--more-->
 
@@ -506,7 +506,7 @@ var b = 2;
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?page_id=26</guid>
 		<description></description>
-		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO 
+		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO
 BRING YOUR WEBSITE OR APP'S CONTENT ALIVE
 
 prismic.io makes it easy to draft & publish content for your website or app and enables you to A/B test and optimise your writings variations. Store content in prismic.io and setup your website or app using a simple API, without traditional CMS programming and design constraints.]]></content:encoded>
@@ -606,7 +606,7 @@ prismic.io makes it easy to draft & publish content for your website or app and 
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?page_id=37</guid>
 		<description></description>
-		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO 
+		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO
 BRING YOUR WEBSITE OR APP'S CONTENT ALIVE
 
 prismic.io makes it easy to draft & publish content for your website or app and enables you to A/B test and optimise your writings variations. Store content in prismic.io and setup your website or app using a simple API, without traditional CMS programming and design constraints.]]></content:encoded>
