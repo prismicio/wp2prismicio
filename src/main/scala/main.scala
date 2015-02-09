@@ -1,13 +1,11 @@
 import scala.collection.JavaConversions._
 import scala.xml.XML
 import net.htmlparser.jericho._
-// import org.jsoup._
-// import org.jsoup.nodes.Element
 import org.lorecraft.phparser.SerializedPhpParser
 import java.util.{ Date, TimeZone }
 import java.text.SimpleDateFormat
 import scala.collection.mutable.{ Map => MMap }
-import play.api.libs.json.{ JsValue, Json, JsArray, JsNull }
+import play.api.libs.json.{ JsValue, Json, JsArray, JsNull, JsString }
 import java.net.URL
 
 object Wp2Prismic {
@@ -21,10 +19,10 @@ object Wp2Prismic {
   case class WPImage(id: String, url: String, width: Option[Int], height: Option[Int], credit: Option[String], copyright: Option[String], alt: Option[String], thumbnails: Seq[WPImage])
 
   case class WPAuthor(login: String, firstName: String, lastName: String) {
-    lazy val fullName = firstName + " " + lastName
+    lazy val fullname = firstName + " " + lastName
   }
 
-  type WPCategory = String
+  case class WPCategory(slug: String, name: String)
 
   object WPImage {
     def apply(id: String, url: String, alt: Option[String], description: Option[String], data: String): WPImage = {
@@ -37,8 +35,8 @@ object Wp2Prismic {
         val x: MMap[String, Any] = m.asInstanceOf[java.util.LinkedHashMap[String, Any]]
         x
       }
-      val credit = meta.flatMap(m => m.get("credit").map(_.asInstanceOf[String])).filter(_ != "")
-      val copyright = meta.flatMap(m => m.get("copyright").map(_.asInstanceOf[String])).filter(_ != "")
+      val credit = meta.flatMap(m => m.get("credit").map(_.asInstanceOf[String])).filter(!_.isEmpty)
+      val copyright = meta.flatMap(m => m.get("copyright").map(_.asInstanceOf[String])).filter(!_.isEmpty)
       val sizes = attributes.get("sizes").map { m =>
         val x: MMap[String, Any] = m.asInstanceOf[java.util.LinkedHashMap[String, Any]]
         x
@@ -67,7 +65,9 @@ object Wp2Prismic {
   }
 
   object Block {
+
     def apply(): Block = Block("", Nil, Nil)
+
     def toJson(block: Block): JsValue =
       Json.obj(
         "type" -> "paragraph",
@@ -76,6 +76,12 @@ object Wp2Prismic {
           "text" -> block.text
         )
       )
+
+    def toJsonSeq(blocks: Seq[Block]): JsValue =
+      blocks.zipWithIndex.foldLeft(Json.obj()) {
+        case (acc, (block, index)) =>
+          acc ++ Json.obj(index.toString -> Block.toJson(block))
+      }
   }
 
   case class Span(start: Int, end: Int, typ: String, data: JsValue)
@@ -100,16 +106,10 @@ object Wp2Prismic {
       Span(start, end, "hyperlink", Json.obj("url" -> url))
 
     def label(start: Int, end: Int, data: String): Span =
-      Span(start, end, "label", Json.obj("data" -> data))
+      Span(start, end, "label", JsString(data))
 
     def quote(start: Int, end: Int): Span =
-      Span(start, end, "quote", JsNull)
-
-    def del(start: Int, end: Int): Span =
-      Span(start, end, "del", JsNull)
-
-    def ins(start: Int, end: Int): Span =
-      Span(start, end, "ins", JsNull)
+      label(start, end, "block-citation")
 
     def img(start: Int, end: Int, width: Int, height: Int, url: String): Span =
       Span(start, end, "image", Json.obj(
@@ -121,12 +121,26 @@ object Wp2Prismic {
       ))
   }
 
+
+  object Category {
+    def apply(slug: String, name: String) =
+      Json.obj(
+        "uid" -> slug,
+        "name" -> name
+      )
+  }
+
+  object Author {
+    def apply(fullname: String) =
+      Json.obj(
+        "full_name" -> fullname
+      )
+  }
+
   object BlogPost {
 
-    def description(content: String): JsValue = {
-      // Identify only paragraph here.
-      Json.obj()
-    }
+    def description(content: String): JsValue =
+      Block.toJsonSeq(wpContent2Blocks(content))
 
     def image(data: Option[WPImage]): JsValue = {
       data.map { d =>
@@ -162,31 +176,26 @@ object Wp2Prismic {
     }
 
     def date(at: Date): JsValue = {
-      Json.obj()
+      val formatter = new SimpleDateFormat("yyyy-MM-dd")
+      JsString(formatter.format(at))
     }
 
-    def body(content: String): JsValue = {
-      val paragraphs = content.split("\n\n").foldRight(Seq.empty[String]) { (p, acc) =>
-        ("<p>" + p + "</p>") +: acc
-      }
+    def body(content: String): JsValue =
+      Block.toJsonSeq(wpContent2Blocks(content))
 
-      val blocks = paragraphs.foldLeft(List.empty[Block]) { (blocks, paragraph) =>
-        val source = new Source(paragraph)
-        wpParagraph2Block(source.getFirstElement) +: blocks
-      }
-
-      blocks.zipWithIndex.foldLeft(Json.obj()) {
-        case (acc, (block, index)) =>
-          Json.obj(index.toString -> Block.toJson(block))
-      }
-    }
-
-    def author(someone: WPAuthor): JsValue = {
-      Json.obj()
-    }
+    def author(someone: WPAuthor): JsValue =
+      Json.obj(
+        "mask" -> "author",
+        "id" -> "xxxx" //TODO
+      )
 
     def categories(categories: Seq[WPCategory]): JsValue = {
-      Json.arr()
+      JsArray(categories.map { category =>
+        Json.obj(
+          "id" -> "xxxx", //TODO
+          "mask" -> "category"
+        )
+      })
     }
 
     def apply(wpost: WPost): JsValue =
@@ -227,8 +236,8 @@ object Wp2Prismic {
       }.map { meta =>
         (meta \ "meta_value").text
       }
-      val description = Option((image \ "encoded").filter(_.prefix == "content").text).filter(_ !="")
-      val caption = Option((image \ "encoded").filter(_.prefix == "excerpt").text).filter(_ != "")
+      val description = Option((image \ "encoded").filter(_.prefix == "content").text).filter(!_.isEmpty)
+      val caption = Option((image \ "encoded").filter(_.prefix == "excerpt").text).filter(!_.isEmpty)
       WPImage(id, url, alt, description, metadata)
     }
 
@@ -236,10 +245,16 @@ object Wp2Prismic {
       val login = (author \ "author_login").text
       val firstName = (author \ "author_first_name").text
       val lastName = (author \ "author_last_name").text
-      Option(WPAuthor(login, firstName, lastName)).filter(!_.fullName.trim.isEmpty)
+      Option(WPAuthor(login, firstName, lastName)).filter(!_.fullname.trim.isEmpty)
     }
 
-    posts.map { p =>
+    val categories = (xml \ "channel" \\ "category").map { category =>
+      val slug = (category \ "category_nicename").text
+      val name = (category \ "cat_name").text
+      WPCategory(slug, name)
+    }
+
+    val blogPostDocs = posts.map { p =>
       val id = (p \ "post_id").text
       val title = (p \ "title").text
       val content = (p \ "encoded").filter(_.prefix == "content").text
@@ -247,9 +262,14 @@ object Wp2Prismic {
         val login = (p \ "creator").text
         authors.find(_.login == login) getOrElse sys.error("oops")
       }
-      val tagsAndCategories = (p \\ "category")
-      val categories = tagsAndCategories.filter(_.attribute("domain").exists(x => x.toString == "category")).flatMap(_.attribute("nicename").map(_.toString)).toList
-      val tags = tagsAndCategories.filter(_.attribute("domain").exists(x => x.toString == "post_tag")).flatMap(_.attribute("nicename").map(_.toString)).toList
+      val categories = {
+        (p \\ "category").filter(_.attribute("domain").exists(x => x.toString == "category")).flatMap { category =>
+          category.attribute("nicename").map(_.toString).map { slug =>
+            WPCategory(slug, category.text)
+          }
+        }.toList
+      }
+      val tags = (p \\ "category").filter(_.attribute("domain").exists(x => x.toString == "post_tag")).flatMap(_.attribute("nicename").map(_.toString)).toList
       val date = {
         val datestr = (p \ "post_date_gmt").text
         val format = new SimpleDateFormat("yyyy-MM-dd hh:mm:ss")
@@ -269,26 +289,51 @@ object Wp2Prismic {
       val slug = (p \ "post_name").text
       val desc = (p \ "encoded").filter(_.prefix == "excerpt").text
       val post = WPost(id, slug, title, desc, content, categories, tags, author, date, commentStatus, image)
-      wp2prismic(post)
+
+      BlogPost(post)
     }
+
+    val authorDocs = authors.map(a => Author(a.fullname))
+    val categoryDocs = categories.map(c => Category(c.slug, c.name))
   }
 
   private def wpParagraph2Block(paragraph: Element): Block = {
-    val excluded = List("<p>", "</p>")
+    val excluded = List("p")
     paragraph.getNodeIterator.toList.foldLeft(Block()) {
-      case (block, tag:Tag) if excluded.contains(tag.tidy) => block
+      case (block, tag:Tag) if excluded.contains(tag.getName) => block
       case (block, tag:StartTag) =>
         block.copy(openTags = (tag, block.text.size) +: block.openTags)
       case (block, tag:EndTag) =>
         val (openTag, start) = block.openTags.head
-        val span = Span(start, block.text.size, openTag.tidy, Json.obj())
+        val end = block.text.size
+        val span = openTag.getName match {
+          case "strong" => Span.strong(start, end)
+          case "em" => Span.em(start, end)
+          case "a" =>
+            val url = openTag.getElement.getAttributeValue("href")
+            Span.hyperlink(start, end, url)
+          case "blockquote" => Span.quote(start, end)
+          case "img" =>
+            val width = openTag.getElement.getAttributeValue("width").toInt
+            val height = openTag.getElement.getAttributeValue("height").toInt
+            val url = openTag.getElement.getAttributeValue("src")
+            Span.img(start, end, width, height, url)
+          case l => Span.label(start, end, l)
+        }
         block.copy(openTags = block.openTags.tail, spans = span +: block.spans)
       case (block, c:CharacterReference) => block append c.getChar
       case (block, text) => block append text.toString
     }
   }
 
-  private def wp2prismic(wpost: WPost) = {
-    BlogPost(wpost)
+  private def wpContent2Blocks(content: String): List[Block] = {
+    val paragraphs = content.split("\n\n").foldRight(Seq.empty[String]) { (p, acc) =>
+      ("<p>" + p + "</p>") +: acc
+    }
+
+    paragraphs.foldLeft(List.empty[Block]) { (blocks, paragraph) =>
+      val source = new Source(paragraph)
+      wpParagraph2Block(source.getFirstElement) +: blocks
+    }
   }
 }
