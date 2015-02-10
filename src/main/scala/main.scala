@@ -60,22 +60,67 @@ object Wp2Prismic {
   }
 
   // PRISMIC
-  case class Block(text: String, spans: List[Span], openTags: List[(Tag, Int)]) {
-    def append(t: String): Block = Block(text + t, spans, openTags)
-    def append(c: Char): Block = Block(text + c, spans, openTags)
+  case class Block(typ: String, text: String, spans: List[Span], data: JsValue, openTags: List[(Tag, Int)]) {
+    def append(t: String): Block = Block(typ, text + t, spans, JsNull, openTags)
+    def append(c: Char): Block = Block(typ, text + c, spans, JsNull, openTags)
   }
 
   object Block {
 
-    def apply(): Block = Block("", Nil, Nil)
+    def apply(typ: String): Block = Block(typ, "", Nil, JsNull, Nil)
+
+    def listItem(text: String) =
+      Block("list-item", text, Nil, JsNull, Nil)
+
+    def olistItem(text: String) =
+      Block("list-item", text, Nil, JsNull, Nil)
+
+    def paragraph = apply("paragraph")
+
+    def preformatted(text: String) =
+      Block("preformatted", text, Nil, JsNull, Nil)
+
+    def image(image: WPImage, linkTo: Option[String]) = {
+      val link = linkTo.map(url => Json.obj("linkTo" -> Json.obj("url" -> url))).getOrElse(Json.obj())
+      val data = Json.obj(
+        "alt" -> image.alt,
+        "credits" -> image.credit,
+        "origin" -> Json.obj(
+          "height" -> image.height,
+          "width" -> image.width,
+          "url" -> image.url
+        ),
+        "thumbnails" -> image.thumbnails.map { thumbnail =>
+          val key = thumbnail.id match {
+            case "thumbnail" => "thumbnail"
+            case "medium" => "medium"
+            //case "large" =>
+            case _ => ""
+          }
+          Json.obj(
+            key -> Json.obj(
+              "alt" -> thumbnail.alt,
+              "credits" -> thumbnail.credit,
+              "origin" -> Json.obj(
+                "height" -> thumbnail.height,
+                "width" -> thumbnail.width,
+                "url" -> thumbnail.url
+              )
+            )
+          )
+        }
+      ) ++ link
+      Block("image", text="", spans=Nil, openTags=Nil, data=data)
+    }
 
     def toJson(block: Block): JsValue =
       Json.obj(
-        "type" -> "paragraph",
+        "type" -> block.typ,
         "content" -> Json.obj(
           "spans" -> block.spans.map(Span.toJson),
           "text" -> block.text
-        )
+        ),
+        "data" -> block.data
       )
 
     def toJsonSeq(blocks: Seq[Block]): JsValue =
@@ -111,68 +156,56 @@ object Wp2Prismic {
 
     def quote(start: Int, end: Int): Span =
       label(start, end, "block-quotation")
-
-    def img(start: Int, end: Int, width: Int, height: Int, url: String): Span =
-      Span(start, end, "image", Json.obj(
-        "origin" -> Json.obj(
-          "height" -> height,
-          "width" -> width,
-          "url" -> url
-        )
-      ))
   }
 
 
   object Category {
+
+    def exportTo(id: String, content: JsValue) = {
+      writeToFile(ref(id), content)
+    }
+
+    def ref(slug: String) = s"category-${slug}"
+
     def apply(slug: String, name: String) =
       Json.obj(
+        "tags" -> Json.arr(),
+        "type" -> "category",
         "uid" -> slug,
         "name" -> name
       )
   }
 
   object Author {
+
+    def exportTo(id: String, content: JsValue) = {
+      writeToFile(ref(id), content)
+    }
+
+    def ref(login: String) = s"author-${login}"
+
     def apply(fullname: String) =
       Json.obj(
+        "tags" -> Json.arr(),
+        "type" -> "author",
         "full_name" -> fullname
       )
   }
 
   object BlogPost {
 
-    def description(content: String): JsValue =
-      Block.toJsonSeq(wpContent2Blocks(content))
+    def ref(id: String) = s"post-${id}"
+
+    def exportTo(id: String, content: JsValue) = {
+      writeToFile(ref(id), content)
+    }
+
+    def description(content: String, images: List[WPImage]): JsValue =
+      Block.toJsonSeq(wpContent2Blocks(content, images))
 
     def image(data: Option[WPImage]): JsValue = {
       data.map { d =>
-        Json.obj(
-          "alt" -> d.alt,
-          "credits" -> d.credit,
-          "origin" -> Json.obj(
-            "height" -> d.height,
-            "width" -> d.width,
-            "url" -> d.url
-          ),
-          "thumbnails" -> d.thumbnails.map { thumbnail =>
-            val key = thumbnail.id match {
-              case "thumbnail" => "thumbnail"
-              case "medium" => "medium"
-              //case "large" =>
-              case _ => ""
-            }
-            Json.obj(
-              key -> Json.obj(
-                "alt" -> thumbnail.alt,
-                "credits" -> thumbnail.credit,
-                "origin" -> Json.obj(
-                  "height" -> thumbnail.height,
-                  "width" -> thumbnail.width,
-                  "url" -> thumbnail.url
-                )
-              )
-            )
-          }
-        )
+        Block.image(d, None).data
       } getOrElse JsNull
     }
 
@@ -181,30 +214,32 @@ object Wp2Prismic {
       JsString(formatter.format(at))
     }
 
-    def body(content: String): JsValue =
-      Block.toJsonSeq(wpContent2Blocks(content))
+    def body(content: String, images: List[WPImage]): JsValue =
+      Block.toJsonSeq(wpContent2Blocks(content, images))
 
     def author(someone: WPAuthor): JsValue =
       Json.obj(
         "mask" -> "author",
-        "id" -> "xxxx" //TODO
+        "id" -> Author.ref(someone.login)
       )
 
-    def categories(categories: Seq[WPCategory]): JsValue = {
+    def categories(categories: List[WPCategory]): JsValue = {
       JsArray(categories.map { category =>
         Json.obj(
-          "id" -> "xxxx", //TODO
+          "id" -> Category.ref(category.slug),
           "mask" -> "category"
         )
       })
     }
 
-    def apply(wpost: WPost): JsValue =
+    def apply(wpost: WPost, images: List[WPImage]): JsValue =
       Json.obj(
+        "tags" -> wpost.tags,
+        "type" -> "post",
         "uid" -> wpost.slug,
         "title" -> wpost.title,
-        "body" -> BlogPost.body(wpost.content),
-        "shortlede" -> BlogPost.description(wpost.description),
+        "body" -> BlogPost.body(wpost.content, images),
+        "shortlede" -> BlogPost.description(wpost.description, images),
         "image" -> BlogPost.image(wpost.image),
         "date" -> BlogPost.date(wpost.at),
         "author" -> BlogPost.author(wpost.author),
@@ -247,12 +282,12 @@ object Wp2Prismic {
       val firstName = (author \ "author_first_name").text
       val lastName = (author \ "author_last_name").text
       Option(WPAuthor(login, firstName, lastName)).filter(!_.fullname.trim.isEmpty)
-    }
+    }.toList
 
-    val categories = (xml \ "channel" \\ "category").map { category =>
+    val categories = (xml \ "channel" \\ "category").flatMap { category =>
       val slug = (category \ "category_nicename").text
       val name = (category \ "cat_name").text
-      WPCategory(slug, name)
+      Option(WPCategory(slug, name)).filter(!_.slug.isEmpty)
     }
 
     val blogPostDocs = posts.map { p =>
@@ -291,33 +326,69 @@ object Wp2Prismic {
       val desc = (p \ "encoded").filter(_.prefix == "excerpt").text
       val post = WPost(id, slug, title, desc, content, categories, tags, author, date, commentStatus, image)
 
-      id -> BlogPost(post)
+      id -> BlogPost(post, images.toList)
     }
 
-    val authorDocs = authors.map(a => Author(a.fullname))
-    val categoryDocs = categories.map(c => Category(c.slug, c.name))
+    authors.foreach(a => Author.exportTo(a.login, Author(a.fullname)))
+    categories.foreach(c => Category.exportTo(c.slug, Category(c.slug, c.name)))
 
     blogPostDocs.foreach {
-      case (id, blogPost) => writeToFile(id + ".json", blogPost)
+      case (id, blogPost) => BlogPost.exportTo(id, blogPost)
     }
   }
 
   private def writeToFile(name: String, content: JsValue) {
     val dataToWrite = Json.prettyPrint(content).getBytes("utf-8")
-    val out = new FileOutputStream(name);
+    val out = new FileOutputStream("export/" + name + ".json");
     out.write(dataToWrite);
     out.close();
   }
 
-  private def wpParagraph2Block(paragraph: Element): Block = {
-    val excluded = List("p")
-    paragraph.getNodeIterator.toList.foldLeft(Block()) {
+  private def wpList2Block(el: Element): Seq[Block] = {
+    el.getChildElements.map { li =>
+      Block.listItem(li.getContent.toString)
+    }
+  }
+
+  private def wpOrderedList2Block(el: Element): Seq[Block] = {
+    el.getChildElements.map { li =>
+      Block.olistItem(li.getContent.toString)
+    }
+  }
+
+  private def wpCode2Block(el: Element): Block = {
+    Block.preformatted(el.getContent.toString)
+  }
+
+  private def wpLink2Block(el: Element, images: List[WPImage]): Block = {
+    val url = el.getAttributeValue("href")
+    val image = el.getChildElements.find { child =>
+      val it = child.getNodeIterator
+      it.hasNext && (it.next match {
+        case tag: Tag if(tag.getName == "img") => true
+        case x => false
+      })
+    }
+    image.map { img =>
+      wpImage2Block(img, Some(url), images)
+    } getOrElse {
+      wpParagraph2Block(el)
+    }
+  }
+
+  private def wpImage2Block(el: Element, linkTo: Option[String], images: List[WPImage]): Block = {
+    val image = images.find(_.url == el.getAttributeValue("src")) getOrElse sys.error("oops")
+    Block.image(image, linkTo)
+  }
+
+  private def wpParagraph2Block(el: Element): Block = {
+    val excluded = List("p", "ul", "ol", "img", "code")
+    el.getNodeIterator.toList.foldLeft(Block.paragraph) {
       case (block, tag:Tag) if excluded.contains(tag.getName) => block
       case (block, tag:StartTag) =>
         block.copy(openTags = (tag, block.text.size) +: block.openTags)
       case (block, tag:EndTag) =>
         val (openTag, start) = block.openTags.head
-        println(openTag.getElement)
         val end = block.text.size
         val span = openTag.getName match {
           case "strong" => Span.strong(start, end)
@@ -326,31 +397,42 @@ object Wp2Prismic {
             val url = openTag.getElement.getAttributeValue("href")
             Span.hyperlink(start, end, url)
           case "blockquote" => Span.quote(start, end)
-          case "img" =>
-            val width = openTag.getElement.getAttributeValue("width").toInt
-            val height = openTag.getElement.getAttributeValue("height").toInt
-            val url = openTag.getElement.getAttributeValue("src")
-            Span.img(start, end, width, height, url)
           case l => Span.label(start, end, l)
         }
         block.copy(openTags = block.openTags.tail, spans = span +: block.spans)
       case (block, c:CharacterReference) => block append c.getChar
-      case (block, text) =>
-        //println(text)
-        block append text.toString
+      case (block, text) => block append text.toString
     }
   }
 
-  private def wpContent2Blocks(content: String): List[Block] = {
-    val paragraphs = content.split("\n\n").foldRight(Seq.empty[String]) { (p, acc) =>
-      ("<p>" + p + "</p>") +: acc
+  private def wpContent2Blocks(content: String, images: List[WPImage]): List[Block] = {
+    val normalized = content.split("\n\n").foldLeft("") { (acc, p) =>
+      acc ++ ("<p>" + p + "</p>")
     }
-    paragraphs.foldRight(List.empty[Block]) { (paragraph, blocks) =>
-      val source = new Source(paragraph)
-      val b = source.getAllElements.map { el =>
-        wpParagraph2Block(el)
-      }
-      b ++: blocks
+    val source = new Source(normalized)
+    val parsed = source.getChildElements.foldLeft(Seq.empty[Block]) { (acc, el) =>
+      val it = el.getNodeIterator()
+      if(it.hasNext) {
+        it.next() match {
+          case tag: Tag =>
+            tag.getName match {
+              case "p" => acc :+ wpParagraph2Block(el)
+              case "ul" => acc ++: wpList2Block(el)
+              case "ol" => acc ++: wpOrderedList2Block(el)
+              case "code" =>acc :+ wpCode2Block(el)
+              case "a" => acc :+ wpLink2Block(el, images)
+              case "img" => acc :+ wpImage2Block(el, None, images)
+              case _ => acc
+            }
+          case c: CharacterReference => acc
+          case s => acc
+        }
+      } else acc
+    }.toList
+
+    parsed.collect {
+      case b@Block("paragraph", text, _, _, _) if(!text.trim.isEmpty) => b
+      case x => x
     }
   }
 }
