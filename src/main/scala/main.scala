@@ -7,6 +7,7 @@ import java.text.SimpleDateFormat
 import scala.collection.mutable.{ Map => MMap }
 import play.api.libs.json.{ JsValue, Json, JsArray, JsNull, JsString }
 import java.net.URL
+import java.io.{ File, FileOutputStream }
 
 object Wp2Prismic {
 
@@ -109,7 +110,7 @@ object Wp2Prismic {
       Span(start, end, "label", JsString(data))
 
     def quote(start: Int, end: Int): Span =
-      label(start, end, "block-citation")
+      label(start, end, "block-quotation")
 
     def img(start: Int, end: Int, width: Int, height: Int, url: String): Span =
       Span(start, end, "image", Json.obj(
@@ -290,11 +291,22 @@ object Wp2Prismic {
       val desc = (p \ "encoded").filter(_.prefix == "excerpt").text
       val post = WPost(id, slug, title, desc, content, categories, tags, author, date, commentStatus, image)
 
-      BlogPost(post)
+      id -> BlogPost(post)
     }
 
     val authorDocs = authors.map(a => Author(a.fullname))
     val categoryDocs = categories.map(c => Category(c.slug, c.name))
+
+    blogPostDocs.foreach {
+      case (id, blogPost) => writeToFile(id + ".json", blogPost)
+    }
+  }
+
+  private def writeToFile(name: String, content: JsValue) {
+    val dataToWrite = Json.prettyPrint(content).getBytes("utf-8")
+    val out = new FileOutputStream(name);
+    out.write(dataToWrite);
+    out.close();
   }
 
   private def wpParagraph2Block(paragraph: Element): Block = {
@@ -305,6 +317,7 @@ object Wp2Prismic {
         block.copy(openTags = (tag, block.text.size) +: block.openTags)
       case (block, tag:EndTag) =>
         val (openTag, start) = block.openTags.head
+        println(openTag.getElement)
         val end = block.text.size
         val span = openTag.getName match {
           case "strong" => Span.strong(start, end)
@@ -322,7 +335,9 @@ object Wp2Prismic {
         }
         block.copy(openTags = block.openTags.tail, spans = span +: block.spans)
       case (block, c:CharacterReference) => block append c.getChar
-      case (block, text) => block append text.toString
+      case (block, text) =>
+        //println(text)
+        block append text.toString
     }
   }
 
@@ -330,10 +345,12 @@ object Wp2Prismic {
     val paragraphs = content.split("\n\n").foldRight(Seq.empty[String]) { (p, acc) =>
       ("<p>" + p + "</p>") +: acc
     }
-
-    paragraphs.foldLeft(List.empty[Block]) { (blocks, paragraph) =>
+    paragraphs.foldRight(List.empty[Block]) { (paragraph, blocks) =>
       val source = new Source(paragraph)
-      wpParagraph2Block(source.getFirstElement) +: blocks
+      val b = source.getAllElements.map { el =>
+        wpParagraph2Block(el)
+      }
+      b ++: blocks
     }
   }
 }
