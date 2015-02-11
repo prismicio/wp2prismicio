@@ -1,3 +1,5 @@
+package wp2prismic
+
 import scala.collection.JavaConversions._
 import scala.xml.XML
 import net.htmlparser.jericho._
@@ -73,7 +75,7 @@ object Wp2Prismic {
       Block("list-item", text, Nil, JsNull, Nil)
 
     def olistItem(text: String) =
-      Block("list-item", text, Nil, JsNull, Nil)
+      Block("o-list-item", text, Nil, JsNull, Nil)
 
     def paragraph = apply("paragraph")
 
@@ -124,10 +126,7 @@ object Wp2Prismic {
       )
 
     def toJsonSeq(blocks: Seq[Block]): JsValue =
-      blocks.zipWithIndex.foldLeft(Json.obj()) {
-        case (acc, (block, index)) =>
-          acc ++ Json.obj(index.toString -> Block.toJson(block))
-      }
+      JsArray(blocks.map(Block.toJson))
   }
 
   case class Span(start: Int, end: Int, typ: String, data: JsValue)
@@ -161,7 +160,7 @@ object Wp2Prismic {
 
   object Category {
 
-    def exportTo(id: String, content: JsValue) = {
+    def exportTo(id: String, content: JsValue): File = {
       writeToFile(ref(id), content)
     }
 
@@ -178,7 +177,7 @@ object Wp2Prismic {
 
   object Author {
 
-    def exportTo(id: String, content: JsValue) = {
+    def exportTo(id: String, content: JsValue): File = {
       writeToFile(ref(id), content)
     }
 
@@ -196,7 +195,7 @@ object Wp2Prismic {
 
     def ref(id: String) = s"post-${id}"
 
-    def exportTo(id: String, content: JsValue) = {
+    def exportTo(id: String, content: JsValue): File = {
       writeToFile(ref(id), content)
     }
 
@@ -329,19 +328,22 @@ object Wp2Prismic {
       id -> BlogPost(post, images.toList)
     }
 
-    authors.foreach(a => Author.exportTo(a.login, Author(a.fullname)))
-    categories.foreach(c => Category.exportTo(c.slug, Category(c.slug, c.name)))
-
-    blogPostDocs.foreach {
+    val authorFiles = authors.map(a => Author.exportTo(a.login, Author(a.fullname)))
+    val categoryFiles = categories.map(c => Category.exportTo(c.slug, Category(c.slug, c.name)))
+    val blogPostFiles = blogPostDocs.map {
       case (id, blogPost) => BlogPost.exportTo(id, blogPost)
     }
+    val filesToZip = authorFiles ++: categoryFiles ++: blogPostFiles
+    ZipUtils.zip(filesToZip, new File("export/wp.zip"))
   }
 
-  private def writeToFile(name: String, content: JsValue) {
+  private def writeToFile(name: String, content: JsValue): File = {
     val dataToWrite = Json.prettyPrint(content).getBytes("utf-8")
-    val out = new FileOutputStream("export/" + name + ".json");
-    out.write(dataToWrite);
-    out.close();
+    val file = new File("export/" + name + ".json")
+    val out = new FileOutputStream(file)
+    out.write(dataToWrite)
+    out.close()
+    file
   }
 
   private def wpList2Block(el: Element): Seq[Block] = {
@@ -363,11 +365,7 @@ object Wp2Prismic {
   private def wpLink2Block(el: Element, images: List[WPImage]): Block = {
     val url = el.getAttributeValue("href")
     val image = el.getChildElements.find { child =>
-      val it = child.getNodeIterator
-      it.hasNext && (it.next match {
-        case tag: Tag if(tag.getName == "img") => true
-        case x => false
-      })
+      child.getStartTag.getName == "img"
     }
     image.map { img =>
       wpImage2Block(img, Some(url), images)
@@ -396,7 +394,9 @@ object Wp2Prismic {
           case "a" =>
             val url = openTag.getElement.getAttributeValue("href")
             Span.hyperlink(start, end, url)
-          case "blockquote" => Span.quote(start, end)
+          case "blockquote" =>
+            println("blockquote")
+            Span.quote(start, end)
           case l => Span.label(start, end, l)
         }
         block.copy(openTags = block.openTags.tail, spans = span +: block.spans)
@@ -405,29 +405,41 @@ object Wp2Prismic {
     }
   }
 
+  private def nextJustChildElement(el: Element): Option[Element] = {
+    val it = el.getNodeIterator()
+    it.next()
+    if(it.hasNext) {
+      it.next() match {
+        case t: Tag => Some(t.getElement)
+        case _ => None
+      }
+    } else None
+  }
+
+  private def isParagraph(el: Element): Boolean =
+    el.getStartTag.getName == "p"
+
   private def wpContent2Blocks(content: String, images: List[WPImage]): List[Block] = {
     val normalized = content.split("\n\n").foldLeft("") { (acc, p) =>
       acc ++ ("<p>" + p + "</p>")
     }
     val source = new Source(normalized)
     val parsed = source.getChildElements.foldLeft(Seq.empty[Block]) { (acc, el) =>
-      val it = el.getNodeIterator()
-      if(it.hasNext) {
-        it.next() match {
-          case tag: Tag =>
-            tag.getName match {
-              case "p" => acc :+ wpParagraph2Block(el)
-              case "ul" => acc ++: wpList2Block(el)
-              case "ol" => acc ++: wpOrderedList2Block(el)
-              case "code" =>acc :+ wpCode2Block(el)
-              case "a" => acc :+ wpLink2Block(el, images)
-              case "img" => acc :+ wpImage2Block(el, None, images)
-              case _ => acc
-            }
-          case c: CharacterReference => acc
-          case s => acc
-        }
-      } else acc
+      val knownBlocks = List("p", "ul", "ol", "code", "a", "img")
+      //FLATTEN PARAGRAPH
+      val flatten = if(isParagraph(el)) {
+        val innerBlock = nextJustChildElement(el).filter(x => knownBlocks.exists(_ == x.getStartTag.getName))
+        innerBlock getOrElse el
+      } else el
+      flatten.getStartTag.getName match {
+        case "p" | "blockquote" => acc :+ wpParagraph2Block(flatten)
+        case "ul" => acc ++: wpList2Block(flatten)
+        case "ol" => acc ++: wpOrderedList2Block(flatten)
+        case "code" =>acc :+ wpCode2Block(flatten)
+        case "a" => acc :+ wpLink2Block(flatten, images)
+        case "img" => acc :+ wpImage2Block(flatten, None, images)
+        case _ => acc
+      }
     }.toList
 
     parsed.collect {
