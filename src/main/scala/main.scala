@@ -29,11 +29,16 @@ object Wp2Prismic {
 
   object WPImage {
     def apply(id: String, url: String, alt: Option[String], description: Option[String], data: String): WPImage = {
+      val asInt = (a: Any) => a match {
+        case x: Int => x
+        case x: String => x.toInt
+        case _ => sys.error("ooops")
+      }
       val parser = new SerializedPhpParser(data)
       val parsed = parser.parse()
       val attributes: MMap[String, Any] = parsed.asInstanceOf[java.util.LinkedHashMap[String, Any]]
-      val width = attributes.get("width").map(_.asInstanceOf[Int])
-      val height = attributes.get("height").map(_.asInstanceOf[Int])
+      val width = attributes.get("width") map asInt
+      val height = attributes.get("height") map asInt
       val meta = attributes.get("image_meta").map { m =>
         val x: MMap[String, Any] = m.asInstanceOf[java.util.LinkedHashMap[String, Any]]
         x
@@ -48,8 +53,8 @@ object Wp2Prismic {
         sizes.get(size).flatMap { t =>
           val x: MMap[String, Any] = t.asInstanceOf[java.util.LinkedHashMap[String, Any]]
           x.get("file").map(_.asInstanceOf[String]).map { file =>
-            val width = x.get("width").map(_.asInstanceOf[Int])
-            val height = x.get("height").map(_.asInstanceOf[Int])
+            val width = x.get("width") map asInt
+            val height = x.get("height") map asInt
             val thumbnailUrl = {
               url.split('/').init.mkString("/") + "/" + file
             }
@@ -91,26 +96,7 @@ object Wp2Prismic {
           "height" -> image.height,
           "width" -> image.width,
           "url" -> image.url
-        ),
-        "thumbnails" -> image.thumbnails.map { thumbnail =>
-          val key = thumbnail.id match {
-            case "thumbnail" => "thumbnail"
-            case "medium" => "medium"
-            //case "large" =>
-            case _ => ""
-          }
-          Json.obj(
-            key -> Json.obj(
-              "alt" -> thumbnail.alt,
-              "credits" -> thumbnail.credit,
-              "origin" -> Json.obj(
-                "height" -> thumbnail.height,
-                "width" -> thumbnail.width,
-                "url" -> thumbnail.url
-              )
-            )
-          )
-        }
+        )
       ) ++ link
       Block("image", text="", spans=Nil, openTags=Nil, data=data)
     }
@@ -164,7 +150,7 @@ object Wp2Prismic {
       writeToFile(ref(id), content)
     }
 
-    def ref(slug: String) = s"category-${slug}"
+    def ref(slug: String) = s"category-${slug}.json"
 
     def apply(slug: String, name: String) =
       Json.obj(
@@ -181,7 +167,7 @@ object Wp2Prismic {
       writeToFile(ref(id), content)
     }
 
-    def ref(login: String) = s"author-${login}"
+    def ref(login: String) = s"author-${login}.json"
 
     def apply(fullname: String) =
       Json.obj(
@@ -193,7 +179,7 @@ object Wp2Prismic {
 
   object BlogPost {
 
-    def ref(id: String) = s"post-${id}"
+    def ref(id: String) = s"post-${id}.json"
 
     def exportTo(id: String, content: JsValue): File = {
       writeToFile(ref(id), content)
@@ -224,10 +210,10 @@ object Wp2Prismic {
 
     def categories(categories: List[WPCategory]): JsValue = {
       JsArray(categories.map { category =>
-        Json.obj(
+        Json.obj("link" -> Json.obj(
           "id" -> Category.ref(category.slug),
           "mask" -> "category"
-        )
+        ))
       })
     }
 
@@ -249,7 +235,8 @@ object Wp2Prismic {
 
   def main(args: Array[String]) {
 
-    val xml = XML.loadFile("prismicio.wordpress.2015-02-03.xml")
+//val xml = XML.loadFile("prismicio.wordpress.2015-02-03.xml")
+    val xml = XML.loadFile("wordpress.2015-02-03.xml")
     val items = xml \ "channel" \\ "item"
 
     val posts = items.filter { item =>
@@ -339,7 +326,7 @@ object Wp2Prismic {
 
   private def writeToFile(name: String, content: JsValue): File = {
     val dataToWrite = Json.prettyPrint(content).getBytes("utf-8")
-    val file = new File("export/" + name + ".json")
+    val file = new File("export/" + name)
     val out = new FileOutputStream(file)
     out.write(dataToWrite)
     out.close()
@@ -375,12 +362,18 @@ object Wp2Prismic {
   }
 
   private def wpImage2Block(el: Element, linkTo: Option[String], images: List[WPImage]): Block = {
-    val image = images.find(_.url == el.getAttributeValue("src")) getOrElse sys.error("oops")
+    val image = images.find(_.url == el.getAttributeValue("src")) getOrElse {
+      val alt = Option(el.getAttributeValue("alt"))
+      val width = Option(el.getAttributeValue("width")) map (_.toInt)
+      val height = Option(el.getAttributeValue("height")) map (_.toInt)
+      val url = el.getAttributeValue("src")
+      WPImage("unknown", url, width, height, None, None, alt, Seq.empty)
+    }
     Block.image(image, linkTo)
   }
 
   private def wpParagraph2Block(el: Element): Block = {
-    val excluded = List("p", "ul", "ol", "img", "code")
+    val excluded = List("p", "ul", "ol", "img", "code", "div")
     el.getNodeIterator.toList.foldLeft(Block.paragraph) {
       case (block, tag:Tag) if excluded.contains(tag.getName) => block
       case (block, tag:StartTag) =>
@@ -394,9 +387,7 @@ object Wp2Prismic {
           case "a" =>
             val url = openTag.getElement.getAttributeValue("href")
             Span.hyperlink(start, end, url)
-          case "blockquote" =>
-            println("blockquote")
-            Span.quote(start, end)
+          case "blockquote" => Span.quote(start, end)
           case l => Span.label(start, end, l)
         }
         block.copy(openTags = block.openTags.tail, spans = span +: block.spans)
@@ -417,7 +408,7 @@ object Wp2Prismic {
   }
 
   private def isParagraph(el: Element): Boolean =
-    el.getStartTag.getName == "p"
+    el.getStartTag.getName == "p" || el.getStartTag.getName == "div"
 
   private def wpContent2Blocks(content: String, images: List[WPImage]): List[Block] = {
     val normalized = content.split("\n\n").foldLeft("") { (acc, p) =>

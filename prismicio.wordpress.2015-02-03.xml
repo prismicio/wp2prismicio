@@ -16,7 +16,7 @@
 <!-- 7. WordPress will then import each of the posts, pages, comments, categories, etc. -->
 <!--    contained in this file into your site. -->
 
-<!-- generator="WordPress/4.1" created="2015-02-06 09:49" -->
+<!-- generator="WordPress/4.1" created="2015-02-13 10:05" -->
 <rss version="2.0"
 	xmlns:excerpt="http://wordpress.org/export/1.2/excerpt/"
 	xmlns:content="http://purl.org/rss/1.0/modules/content/"
@@ -29,7 +29,7 @@
 	<title>prismic.io</title>
 	<link>http://localhost:8888</link>
 	<description>AN ENTIRELY NEW WAY TO  BRING YOUR WEBSITE OR APP&#039;S CONTENT ALIVE</description>
-	<pubDate>Fri, 06 Feb 2015 09:49:49 +0000</pubDate>
+	<pubDate>Fri, 13 Feb 2015 10:05:36 +0000</pubDate>
 	<language>en-US</language>
 	<wp:wxr_version>1.2</wp:wxr_version>
 	<wp:base_site_url>http://localhost:8888</wp:base_site_url>
@@ -237,7 +237,7 @@ Pour supprimer un commentaire, connectez-vous et affichez les commentaires de ce
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?p=15</guid>
 		<description></description>
-		<content:encoded><![CDATA[Today, I am glad to ship a new prismic.io feature: <strong><em>prismic Preview Bar</em></strong>. It allows you to <strong>preview</strong> your Writing Room changes and it integrates seemlessly into your website in any technology or design. You can preview planned releases, saved or unsaved drafts without publishing them.
+		<content:encoded><![CDATA[Today, I am glad to ship a new prismic.io feature: <strong><em>prismic Preview Bar</em></strong>. It allows you to preview your Writing Room changes and it integrates seemlessly into your website in any technology or design. You can preview planned releases, saved or unsaved drafts without publishing them.
 
 <!--more-->
 
@@ -289,7 +289,9 @@ function() { console.log('here') };
 var a = 1;
 var b = 2;
 </code>]]></content:encoded>
-		<excerpt:encoded><![CDATA[This is a summary!!!]]></excerpt:encoded>
+		<excerpt:encoded><![CDATA[This is a summary!!!
+
+qsdqsd]]></excerpt:encoded>
 		<wp:post_id>15</wp:post_id>
 		<wp:post_date>2015-02-03 14:09:17</wp:post_date>
 		<wp:post_date_gmt>2015-02-03 14:09:17</wp:post_date_gmt>
@@ -506,7 +508,7 @@ var b = 2;
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?page_id=26</guid>
 		<description></description>
-		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO
+		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO 
 BRING YOUR WEBSITE OR APP'S CONTENT ALIVE
 
 prismic.io makes it easy to draft & publish content for your website or app and enables you to A/B test and optimise your writings variations. Store content in prismic.io and setup your website or app using a simple API, without traditional CMS programming and design constraints.]]></content:encoded>
@@ -606,7 +608,7 @@ prismic.io makes it easy to draft & publish content for your website or app and 
 		<dc:creator><![CDATA[sre]]></dc:creator>
 		<guid isPermaLink="false">http://localhost:8888/?page_id=37</guid>
 		<description></description>
-		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO
+		<content:encoded><![CDATA[AN ENTIRELY NEW WAY TO 
 BRING YOUR WEBSITE OR APP'S CONTENT ALIVE
 
 prismic.io makes it easy to draft & publish content for your website or app and enables you to A/B test and optimise your writings variations. Store content in prismic.io and setup your website or app using a simple API, without traditional CMS programming and design constraints.]]></content:encoded>
