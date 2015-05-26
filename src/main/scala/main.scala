@@ -21,8 +21,8 @@ object Wp2Prismic {
 
   case class WPImage(id: String, url: String, width: Option[Int], height: Option[Int], credit: Option[String], copyright: Option[String], alt: Option[String], thumbnails: Seq[WPImage])
 
-  case class WPAuthor(login: String, firstName: String, lastName: String) {
-    lazy val fullname = firstName + " " + lastName
+  case class WPAuthor(login: String, firstName: String, lastName: String, displayName: Option[String]) {
+    lazy val fullname = displayName.getOrElse(firstName + " " + lastName)
   }
 
   case class WPCategory(slug: String, name: String)
@@ -267,7 +267,8 @@ object Wp2Prismic {
       val login = (author \ "author_login").text
       val firstName = (author \ "author_first_name").text
       val lastName = (author \ "author_last_name").text
-      Option(WPAuthor(login, firstName, lastName)).filter(!_.fullname.trim.isEmpty)
+      val displayName = Some((author \ "author_display_name").text).filterNot(_ == "")
+      Option(WPAuthor(login, firstName, lastName, displayName)).filter(!_.fullname.trim.isEmpty)
     }.toList
 
     val categories = (xml \ "channel" \\ "category").flatMap { category =>
@@ -282,7 +283,7 @@ object Wp2Prismic {
       val content = (p \ "encoded").filter(_.prefix == "content").text
       val author = {
         val login = (p \ "creator").text
-        authors.find(_.login == login) getOrElse sys.error("oops")
+        authors.find(_.login == login) getOrElse sys.error(s"Oops, can't find author $login")
       }
       val categories = {
         (p \\ "category").filter(_.attribute("domain").exists(x => x.toString == "category")).flatMap { category =>
