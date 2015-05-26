@@ -401,7 +401,7 @@ object Wp2Prismic {
     it.next()
     if(it.hasNext) {
       it.next() match {
-        case t: Tag => Some(t.getElement)
+        case t: Tag => Option(t.getElement)
         case _ => None
       }
     } else None
