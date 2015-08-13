@@ -236,7 +236,7 @@ object Wp2Prismic {
   def main(args: Array[String]) {
 
 //val xml = XML.loadFile("prismicio.wordpress.2015-02-03.xml")
-    val xml = XML.loadFile("wordpress.2015-02-03.xml")
+    val xml = XML.loadFile("prismicio.wordpress.2015-02-03.xml")
     val items = xml \ "channel" \\ "item"
 
     val posts = items.filter { item =>
